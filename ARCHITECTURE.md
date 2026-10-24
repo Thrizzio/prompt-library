@@ -1,14 +1,13 @@
 # Architecture Documentation: Personal Prompt Library
 
 ## 1. Product Purpose and Scope
-The Personal Prompt Library is a fast, responsive, and minimal web utility designed for individuals to store, categorize, retrieve, and copy AI prompts reliably. 
+The Personal Prompt Library is a fast, responsive, clean, and minimal single-user web utility designed as a **public prompt showcase and personal toolkit**. 
 
-The application is tailored as an uncluttered personal tool:
-- Fast client-side retrieval and instant search.
-- Zero markdown execution risk (plain-text rendering).
-- 100% reliable clipboard copying preserving exact whitespace.
-- Secure persistence backed by Supabase PostgreSQL with strict Row Level Security (RLS).
-- Responsive on all devices from 320px mobile screens to wide desktop monitors.
+- **Frictionless Public Access:** Visitors can instantly view, search, filter, and copy all curated prompts to their clipboard with zero authentication.
+- **Single-User Owner Controls:** The repository owner (or self-hoster) unlocks editing, creation, duplication, and deletion via a simple passkey (`VITE_ADMIN_PASSKEY`) stored in `.env`.
+- **Zero HTML Injection Risk:** Prompts are rendered strictly as raw text (`white-space: pre-wrap`).
+- **Exact Whitespace Preservation:** Copying preserves all spaces, indentation, and line breaks.
+- **Self-Hostable Simplicity:** Anyone can clone the repository, connect their own Supabase database, set a passkey, and host their personal prompt library.
 
 ---
 
@@ -16,18 +15,16 @@ The application is tailored as an uncluttered personal tool:
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| **Frontend Framework** | React 18 + TypeScript | Strict type safety, predictable state rendering, and robust component model. |
-| **Build Tool** | Vite | Instant Hot Module Replacement (HMR), lightweight bundle size, and fast production builds. |
-| **Styling** | Tailwind CSS | Utility-first CSS ensuring minimal runtime overhead, consistent design tokens, and rapid responsive adjustments. |
+| **Frontend Framework** | React 18 + TypeScript | Strict type safety, predictable rendering, and clean component isolation. |
+| **Build Tool** | Vite | Instant HMR, lightweight bundle size, and fast production builds. |
+| **Styling** | Tailwind CSS | Utility-first CSS ensuring minimal runtime overhead, consistent tokens, and rapid responsive adjustments. |
 | **Icons** | Lucide React | Lightweight, clean, accessible SVG icons with zero bloat. |
-| **Persistence & Auth** | Supabase (PostgreSQL + Auth + RLS) | Direct client queries secured via database policies, avoiding unnecessary custom backend boilerplates. |
-| **Testing** | Vitest + React Testing Library | Blazing fast ESM-native test runner compatible with Vite configuration; contract and component behavior validation. |
+| **Persistence** | Supabase (PostgreSQL + RLS) | Simple, managed PostgreSQL instance supporting public read and passkey-guarded client mutations. |
+| **Testing** | Vitest + React Testing Library | Fast ESM-native runner validating component contracts, clipboard behaviors, and input constraints. |
 
 ---
 
 ## 3. High-Level Architecture
-
-The application adopts a **Serverless 2-Tier Architecture**:
 
 ```
 +-----------------------------------------------------------+
@@ -39,8 +36,8 @@ The application adopts a **Serverless 2-Tier Architecture**:
 |  +---------------------------+-------------------------+  |
 |                              |                            |
 |  +---------------------------v-------------------------+  |
-|  |             Custom Hooks / State Services           |  |
-|  |       (useAuth, usePrompts, useCategories)         |  |
+|  |              Custom Hooks / Local State             |  |
+|  |      (useAdmin, usePrompts, useCategories)          |  |
 |  +---------------------------+-------------------------+  |
 |                              |                            |
 |  +---------------------------v-------------------------+  |
@@ -48,22 +45,21 @@ The application adopts a **Serverless 2-Tier Architecture**:
 |  +---------------------------+-------------------------+  |
 +------------------------------|----------------------------+
                                | HTTPS / WSS
-                               | (Anon Key + JWT)
+                               | (Anon Key)
 +------------------------------v----------------------------+
 |                     Supabase Platform                     |
 |                                                           |
-|  +-----------------------+     +-----------------------+  |
-|  |     Supabase Auth     |     |   PostgreSQL Database |  |
-|  | (Session / JWT tokens)|     |   - prompts table     |  |
-|  +-----------------------+     |   - categories table  |  |
-|                                |   - Row Level Security|  |
-|                                +-----------------------+  |
+|  +-----------------------------------------------------+  |
+|  |                 PostgreSQL Database                 |  |
+|  |   - prompts table (Public read, indexed)            |  |
+|  |   - categories table (Public read, indexed)         |  |
+|  |   - Row Level Security (RLS)                        |  |
+|  +-----------------------------------------------------+  |
 +-----------------------------------------------------------+
 ```
 
-1. **Authentication Flow:** Supabase Auth manages sessions. JWT tokens are stored securely in localStorage and automatically attached to requests.
-2. **Data Layer:** Direct PostgreSQL operations via the Supabase client.
-3. **Authorization:** Row Level Security (RLS) guarantees data isolation at the database engine level.
+1. **Visitor Mode:** All visitors see all prompts, categories, tags, search bar, list/grid toggle, and copy buttons. No sign in or register modal exists.
+2. **Owner Mode:** Unlocked via an inconspicuous owner key button. Entering the secret passkey unlocks "New Prompt", "Edit", "Duplicate", "Delete", and category addition actions.
 
 ---
 
@@ -97,19 +93,21 @@ The application adopts a **Serverless 2-Tier Architecture**:
 │   │   ├── validation.ts    # Input length & formatting validators
 │   │   └── clipboard.ts     # Resilient clipboard copy helper
 │   ├── hooks/
-│   │   ├── useAuth.ts       # Auth session & listener hook
+│   │   ├── useAdmin.ts      # Owner passkey verification & state
 │   │   ├── usePrompts.ts    # Prompts CRUD & optimistic filtering
 │   │   └── useCategories.ts # Categories fetch & creation hook
 │   ├── components/
-│   │   ├── common/          # Button, Input, Modal, Badge, Toast
-│   │   ├── auth/            # AuthModal / LoginForm / SignUpForm
-│   │   ├── layout/          # Header, Sidebar, Navigation
+│   │   ├── common/          # Button, Input, Modal, Badge, Toast, EmptyState
+│   │   ├── admin/           # AdminModal (Owner passkey prompt)
+│   │   ├── layout/          # Header, Sidebar, AppShell
 │   │   └── prompts/         # PromptCard, PromptList, PromptModal, SearchFilter
 │   └── tests/
 │       ├── setup.ts         # Vitest DOM test environment
+│       ├── admin.test.tsx
 │       ├── clipboard.test.ts
 │       ├── validation.test.ts
-│       └── prompts.test.tsx
+│       ├── prompts.test.tsx
+│       └── shell.test.tsx
 ```
 
 ---
@@ -119,25 +117,26 @@ The application adopts a **Serverless 2-Tier Architecture**:
 ### PostgreSQL Schema
 
 #### 1. `categories` Table
-Stores user-specific categories for organizing prompts.
+Stores categories for organizing prompts.
 
 ```sql
 CREATE TABLE public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    CONSTRAINT uq_categories_user_name UNIQUE (user_id, name)
+    user_id UUID,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+CREATE INDEX idx_categories_name ON public.categories(name);
 ```
 
 #### 2. `prompts` Table
-Stores prompts authored by users.
+Stores prompts authored by the owner.
 
 ```sql
 CREATE TABLE public.prompts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID,
     title VARCHAR(150) NOT NULL,
     content TEXT NOT NULL,
     category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
@@ -147,125 +146,48 @@ CREATE TABLE public.prompts (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Performance Indexes
-CREATE INDEX idx_prompts_user_id ON public.prompts(user_id);
 CREATE INDEX idx_prompts_category_id ON public.prompts(category_id);
-CREATE INDEX idx_prompts_is_favorite ON public.prompts(user_id, is_favorite);
-CREATE INDEX idx_prompts_created_at ON public.prompts(user_id, created_at DESC);
+CREATE INDEX idx_prompts_is_favorite ON public.prompts(is_favorite);
+CREATE INDEX idx_prompts_created_at ON public.prompts(created_at DESC);
 ```
 
 ---
 
-## 6. Authentication and Authorization Strategy
+## 6. Access Control & Passkey Strategy
 
-- **Supabase Auth** is used for email/password and magic-link authentication.
-- **Session Lifecycle:** Managed with `supabase.auth.onAuthStateChange`. Session state is synchronized in React context (`useAuth`).
-- **Unauthenticated State:** Prompts cannot be viewed or modified without an active authenticated session. A clean, non-intrusive authentication modal or landing view allows sign-in / registration.
-
----
-
-## 7. Database Security and Row Level Security (RLS)
-
-All public tables enforce strict RLS:
-
-```sql
-ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.prompts ENABLE ROW LEVEL SECURITY;
-
--- Categories RLS
-CREATE POLICY "Users can manage their own categories"
-ON public.categories
-FOR ALL
-TO authenticated
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
--- Prompts RLS
-CREATE POLICY "Users can manage their own prompts"
-ON public.prompts
-FOR ALL
-TO authenticated
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-```
-
-Cross-tenant data leakage is fundamentally prevented by PostgreSQL evaluating `auth.uid() = user_id`. Even with malicious client queries, unauthorized records cannot be fetched, created, or mutated.
+- **Public Read Access:** Visitors can browse, search, and copy prompts without login.
+- **Owner Passkey:** Configured via `VITE_ADMIN_PASSKEY` in `.env`. Entering the passkey unlocks mutation tools in the browser (persisted in `localStorage`).
+- **No Complex Identity Provider:** Eliminates the friction of email verifications, passwords, session expirations, and multi-tenant databases.
 
 ---
 
-## 8. Environment Variable Requirements
-
-Required client environment variables (validated upon startup):
-- `VITE_SUPABASE_URL`: HTTPS endpoint for the Supabase project.
-- `VITE_SUPABASE_ANON_KEY`: Safe public/anonymous client key protected by RLS.
-
-*Note:* Service role keys are never exposed in frontend code.
-
----
-
-## 9. Data Validation and Error-Handling Strategy
+## 7. Data Validation and Error-Handling Strategy
 
 - **Validation Rules:**
   - `title`: Required, trimmed, 1–150 characters.
   - `content`: Required, preserved exact whitespace, 1–50,000 characters.
   - `tags`: Array of alphanumeric words (max 10 tags, max 30 chars per tag).
   - `category_id`: Valid UUID or null.
-- **XSS & Output Safety:** Prompt content is rendered strictly as plain text (CSS `white-space: pre-wrap`) inside `<pre>` or `<div>`. `dangerouslySetInnerHTML` is prohibited.
-- **Error Handling:** Client presents user-friendly feedback via unobtrusive toasts and preserves form inputs when network or validation errors arise.
+- **XSS & Output Safety:** Prompt content is rendered strictly as plain text (CSS `white-space: pre-wrap`) inside `<pre>`. `dangerouslySetInnerHTML` is strictly avoided.
+- **Error Handling:** Client presents user-friendly feedback via toasts and preserves form inputs when recoverable errors arise.
 
 ---
 
-## 10. Search and Clipboard Behavior
+## 8. Search and Clipboard Behavior
 
 ### Search & Filtering
-- Client-side real-time filtering across `title`, `content`, and `tags`.
+- Instant client-side filtering across `title`, `content`, and `tags`.
 - Zero latency for personal libraries (< 10,000 items).
-- Filter controls: Category selector, "Favorites only" toggle, and full-text keyword matching.
-- Clear button to quickly reset active filters.
+- Filter controls: Category selector, "Favorites only" toggle, and keyword matching.
 
 ### Clipboard Action
-- Uses modern `navigator.clipboard.writeText()` with fallback to a hidden textarea copy mechanism for older contexts.
+- Uses modern `navigator.clipboard.writeText()` with fallback to a hidden textarea mechanism.
 - Strict whitespace preservation (no trimming of prompt indentation or line breaks).
-- Visual status feedback (checkmark toast / icon swap) lasting 2 seconds.
-- Accurate error signaling if clipboard permissions are denied.
+- Visual status feedback (`Copied` badge) lasting 2 seconds.
 
 ---
 
-## 11. Responsive Design Strategy
+## 9. Responsive Design Strategy
 
-- **Mobile First (< 640px):** Single column, sticky top search/filter header, floating or header action buttons, touch targets >= 44x44px, bottom-sheet or full-screen prompt modal.
-- **Tablet (640px – 1024px):** 2-column prompt grid with compact filters.
-- **Desktop (>= 1024px):** Sidebar navigation for categories and tags, top search bar, multi-column grid / list toggle, and quick keyboard shortcuts (e.g., `Esc` to close modals, `/` to focus search).
-
----
-
-## 12. Testing Strategy
-
-1. **Unit Tests:**
-   - Input validation functions (`validatePromptInput`).
-   - Resilient clipboard utility (`copyToClipboard`).
-2. **Component & Integration Tests:**
-   - Prompt creation, editing, and deletion confirmation flows.
-   - Filtering and search state transitions.
-   - Authentication conditional rendering.
-3. **Database Security Verification:**
-   - RLS policy audits verifying isolation across user IDs.
-
----
-
-## 13. Deployment Assumptions
-
-- Static single-page application (SPA) build produced by Vite (`dist/`).
-- Deployable to static hosting platforms (Vercel, Cloudflare Pages, Netlify, or Supabase Hosting).
-- Database hosted on Supabase PostgreSQL with migrations applied.
-
----
-
-## 14. Explicit Non-Goals and Deferred Features
-
-The initial release intentionally defers:
-- AI prompt completion, evaluation, or generation APIs.
-- Public prompt sharing / marketplace features.
-- Vector database embeddings and semantic search.
-- Rich text / WYSIWYG formatting (prompts must remain exact raw text).
-- Multi-user team workspaces and RBAC.
+- **Mobile First (< 640px):** Single column, sticky top search header, touch targets $\ge 44 \times 44\text{px}$, responsive drawer.
+- **Desktop (>= 1024px):** Persistent sidebar navigation, top search bar, multi-column grid/list view toggle.

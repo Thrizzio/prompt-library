@@ -2,17 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Prompt, CreatePromptInput, UpdatePromptInput } from '../types/database';
 
-export function usePrompts(userId?: string | null) {
+export function usePrompts() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPrompts = useCallback(async () => {
-    if (!userId) {
-      setPrompts([]);
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
@@ -53,7 +48,7 @@ export function usePrompts(userId?: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchPrompts();
@@ -61,14 +56,9 @@ export function usePrompts(userId?: string | null) {
 
   const createPrompt = useCallback(
     async (input: CreatePromptInput): Promise<Prompt> => {
-      if (!userId) {
-        throw new Error('You must be signed in to create prompts.');
-      }
-
       const { data, error: insertErr } = await supabase
         .from('prompts')
         .insert({
-          user_id: userId,
           title: input.title.trim(),
           content: input.content, // exact whitespace preserved
           category_id: input.category_id || null,
@@ -103,15 +93,11 @@ export function usePrompts(userId?: string | null) {
       setPrompts((prev) => [created, ...prev]);
       return created;
     },
-    [userId]
+    []
   );
 
   const updatePrompt = useCallback(
     async (id: string, input: UpdatePromptInput): Promise<Prompt> => {
-      if (!userId) {
-        throw new Error('You must be signed in to update prompts.');
-      }
-
       const updates: Record<string, unknown> = {};
       if (input.title !== undefined) updates.title = input.title.trim();
       if (input.content !== undefined) updates.content = input.content;
@@ -151,15 +137,11 @@ export function usePrompts(userId?: string | null) {
       setPrompts((prev) => prev.map((p) => (p.id === id ? updated : p)));
       return updated;
     },
-    [userId]
+    []
   );
 
   const deletePrompt = useCallback(
     async (id: string): Promise<void> => {
-      if (!userId) {
-        throw new Error('You must be signed in to delete prompts.');
-      }
-
       const { error: deleteErr } = await supabase
         .from('prompts')
         .delete()
@@ -171,7 +153,7 @@ export function usePrompts(userId?: string | null) {
 
       setPrompts((prev) => prev.filter((p) => p.id !== id));
     },
-    [userId]
+    []
   );
 
   const toggleFavorite = useCallback(

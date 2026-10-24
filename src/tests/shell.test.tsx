@@ -4,16 +4,15 @@ import { App } from '../App';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 
-describe('Application Shell & Design System', () => {
-  it('renders application branding and unauthenticated state properly', async () => {
+describe('Application Shell & Public Showcase', () => {
+  it('renders application branding, search, and public prompt library view immediately', async () => {
     render(<App />);
     expect(screen.getAllByText('Prompt Library')[0]).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search prompt titles, content, or tags/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /owner unlock/i })).toBeInTheDocument();
     await waitFor(() => {
-      expect(
-        screen.getByText('Sign in to access your personal prompt library')
-      ).toBeInTheDocument();
+      expect(screen.getByText('All Prompts')).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /sign in \/ register/i })).toBeInTheDocument();
   });
 
   it('renders Button with variants and accessible attributes', () => {

@@ -1,24 +1,22 @@
 import { useState, useMemo } from 'react';
-import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ToastProvider, useToast } from './components/common/Toast';
 import { AppShell } from './components/layout/AppShell';
 import { PromptModal } from './components/prompts/PromptModal';
-import { AuthModal } from './components/auth/AuthModal';
+import { AdminModal } from './components/admin/AdminModal';
 import { SearchFilter } from './components/prompts/SearchFilter';
 import { PromptList } from './components/prompts/PromptList';
-import { EmptyState } from './components/common/EmptyState';
+import { useAdmin } from './hooks/useAdmin';
 import { useCategories } from './hooks/useCategories';
 import { usePrompts } from './hooks/usePrompts';
 import { copyToClipboard } from './lib/clipboard';
 import { Prompt, CreatePromptInput } from './types/database';
 import { PromptFilterState, ViewMode } from './types/prompt';
-import { LogIn } from 'lucide-react';
 
 function PromptLibraryMain() {
-  const { user, signOut } = useAuth();
+  const { isAdmin, unlockAdmin, lockAdmin } = useAdmin();
   const { success, error: toastError, info } = useToast();
 
-  const { categories, addCategory } = useCategories(user?.id);
+  const { categories, addCategory } = useCategories();
   const {
     prompts,
     isLoading: isPromptsLoading,
@@ -27,7 +25,7 @@ function PromptLibraryMain() {
     deletePrompt,
     toggleFavorite,
     duplicatePrompt,
-  } = usePrompts(user?.id);
+  } = usePrompts();
 
   // Filter state
   const [filters, setFilters] = useState<PromptFilterState>({
@@ -40,7 +38,7 @@ function PromptLibraryMain() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Modals state
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
 
@@ -111,10 +109,6 @@ function PromptLibraryMain() {
 
   // Prompt actions
   const handleOpenCreatePrompt = () => {
-    if (!user) {
-      setIsAuthModalOpen(true);
-      return;
-    }
     setEditingPrompt(null);
     setIsPromptModalOpen(true);
   };
@@ -181,9 +175,17 @@ function PromptLibraryMain() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    info('Signed out.');
+  const handleUnlockAdmin = (passkey: string) => {
+    const successResult = unlockAdmin(passkey);
+    if (successResult) {
+      success('Owner mode unlocked! You can now add and edit prompts.');
+    }
+    return successResult;
+  };
+
+  const handleLockAdmin = () => {
+    lockAdmin();
+    info('Owner mode locked.');
   };
 
   const hasActiveFilters = Boolean(
@@ -195,63 +197,53 @@ function PromptLibraryMain() {
 
   return (
     <AppShell
-      userEmail={user?.email}
+      isAdmin={isAdmin}
       categories={categories}
       filters={filters}
       onFilterChange={handleFilterChange}
-      onAddCategory={user ? handleAddCategory : undefined}
+      onAddCategory={isAdmin ? handleAddCategory : undefined}
       promptCounts={promptCounts}
       availableTags={availableTags}
       onOpenNewPrompt={handleOpenCreatePrompt}
-      onOpenAuth={() => setIsAuthModalOpen(true)}
-      onSignOut={handleSignOut}
+      onOpenAdminModal={() => setIsAdminModalOpen(true)}
+      onLockAdmin={handleLockAdmin}
     >
-      {!user ? (
-        <EmptyState
-          icon={<LogIn className="w-6 h-6" />}
-          title="Sign in to access your personal prompt library"
-          description="Your prompts are protected with PostgreSQL Row Level Security. Sign in or create a private account to start saving prompts."
-          actionLabel="Sign In / Register"
-          onAction={() => setIsAuthModalOpen(true)}
-        />
-      ) : (
-        <>
-          <SearchFilter
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            categories={categories}
-            totalResults={filteredPrompts.length}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-          />
+      <SearchFilter
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        categories={categories}
+        totalResults={filteredPrompts.length}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
-          <PromptList
-            prompts={filteredPrompts}
-            isLoading={isPromptsLoading}
-            viewMode={viewMode}
-            hasActiveFilters={hasActiveFilters}
-            onResetFilters={() =>
-              setFilters({
-                searchQuery: '',
-                selectedCategoryId: null,
-                favoritesOnly: false,
-                selectedTag: null,
-              })
-            }
-            onOpenCreate={handleOpenCreatePrompt}
-            onEdit={handleEditPrompt}
-            onDelete={handleDeletePrompt}
-            onToggleFavorite={handleToggleFavorite}
-            onDuplicate={handleDuplicatePrompt}
-            onCopy={handleCopyPrompt}
-          />
-        </>
-      )}
+      <PromptList
+        prompts={filteredPrompts}
+        isLoading={isPromptsLoading}
+        viewMode={viewMode}
+        isAdmin={isAdmin}
+        hasActiveFilters={hasActiveFilters}
+        onResetFilters={() =>
+          setFilters({
+            searchQuery: '',
+            selectedCategoryId: null,
+            favoritesOnly: false,
+            selectedTag: null,
+          })
+        }
+        onOpenCreate={handleOpenCreatePrompt}
+        onEdit={handleEditPrompt}
+        onDelete={handleDeletePrompt}
+        onToggleFavorite={handleToggleFavorite}
+        onDuplicate={handleDuplicatePrompt}
+        onCopy={handleCopyPrompt}
+      />
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+      {/* Admin Unlock Modal */}
+      <AdminModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onUnlock={handleUnlockAdmin}
       />
 
       {/* Prompt Create/Edit Modal */}
@@ -271,11 +263,9 @@ function PromptLibraryMain() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <PromptLibraryMain />
-      </ToastProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <PromptLibraryMain />
+    </ToastProvider>
   );
 }
 

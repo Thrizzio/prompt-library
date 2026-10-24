@@ -5,7 +5,7 @@ import { Category } from '../../types/database';
 import { PromptFilterState } from '../../types/prompt';
 
 export interface AppShellProps {
-  userEmail?: string | null;
+  isAdmin: boolean;
   categories: Category[];
   filters: PromptFilterState;
   onFilterChange: (filters: Partial<PromptFilterState>) => void;
@@ -17,13 +17,13 @@ export interface AppShellProps {
   };
   availableTags?: string[];
   onOpenNewPrompt: () => void;
-  onOpenAuth: () => void;
-  onSignOut: () => void;
+  onOpenAdminModal: () => void;
+  onLockAdmin: () => void;
   children: React.ReactNode;
 }
 
 export function AppShell({
-  userEmail,
+  isAdmin,
   categories,
   filters,
   onFilterChange,
@@ -31,8 +31,8 @@ export function AppShell({
   promptCounts,
   availableTags,
   onOpenNewPrompt,
-  onOpenAuth,
-  onSignOut,
+  onOpenAdminModal,
+  onLockAdmin,
   children,
 }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -40,10 +40,10 @@ export function AppShell({
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Header
-        userEmail={userEmail}
+        isAdmin={isAdmin}
         onOpenNewPrompt={onOpenNewPrompt}
-        onOpenAuth={onOpenAuth}
-        onSignOut={onSignOut}
+        onOpenAdminModal={onOpenAdminModal}
+        onLockAdmin={onLockAdmin}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
       />
 

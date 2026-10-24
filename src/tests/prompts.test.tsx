@@ -158,6 +158,7 @@ describe('Prompt Management Components', () => {
       render(
         <PromptCard
           prompt={mockPrompts[0]}
+          isAdmin={true}
           onEdit={vi.fn()}
           onDelete={handleDelete}
           onToggleFavorite={vi.fn()}

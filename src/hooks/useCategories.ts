@@ -2,17 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Category } from '../types/database';
 
-export function useCategories(userId?: string | null) {
-  const [categories, setCategories] = useState<Category[]>([]);
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'def-1', user_id: '', name: 'Coding', created_at: '' },
+  { id: 'def-2', user_id: '', name: 'Writing', created_at: '' },
+  { id: 'def-3', user_id: '', name: 'Research', created_at: '' },
+  { id: 'def-4', user_id: '', name: 'Productivity', created_at: '' },
+  { id: 'def-5', user_id: '', name: 'Learning', created_at: '' },
+  { id: 'def-6', user_id: '', name: 'Other', created_at: '' },
+];
+
+export function useCategories() {
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCategories = useCallback(async () => {
-    if (!userId) {
-      setCategories([]);
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
@@ -26,14 +30,17 @@ export function useCategories(userId?: string | null) {
         throw fetchErr;
       }
 
-      setCategories(data || []);
+      if (data && data.length > 0) {
+        setCategories(data);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load categories.';
       setError(msg);
+      // Keep DEFAULT_CATEGORIES as resilient fallback
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchCategories();
@@ -46,10 +53,6 @@ export function useCategories(userId?: string | null) {
         throw new Error('Category name cannot be empty.');
       }
 
-      if (!userId) {
-        throw new Error('You must be signed in to add categories.');
-      }
-
       const existing = categories.find(
         (c) => c.name.toLowerCase() === cleanName.toLowerCase()
       );
@@ -60,7 +63,6 @@ export function useCategories(userId?: string | null) {
       const { data, error: insertErr } = await supabase
         .from('categories')
         .insert({
-          user_id: userId,
           name: cleanName,
         })
         .select()
@@ -73,7 +75,7 @@ export function useCategories(userId?: string | null) {
       setCategories((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       return data;
     },
-    [userId, categories]
+    [categories]
   );
 
   return {

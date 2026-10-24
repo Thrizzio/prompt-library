@@ -1,21 +1,20 @@
--- Personal Prompt Library Initial Schema and RLS Policies
+-- Personal Prompt Library Schema and Public Access Policies (Single-User Showcase)
 
 -- 1. Create categories table
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    CONSTRAINT uq_categories_user_name UNIQUE (user_id, name)
+    user_id UUID,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Index for category queries by user
-CREATE INDEX IF NOT EXISTS idx_categories_user_id ON public.categories(user_id);
+-- Index for category queries
+CREATE INDEX IF NOT EXISTS idx_categories_name ON public.categories(name);
 
 -- 2. Create prompts table
 CREATE TABLE IF NOT EXISTS public.prompts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID,
     title VARCHAR(150) NOT NULL,
     content TEXT NOT NULL,
     category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
@@ -26,10 +25,9 @@ CREATE TABLE IF NOT EXISTS public.prompts (
 );
 
 -- Performance Indexes for search, filtering, and ordering
-CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON public.prompts(user_id);
 CREATE INDEX IF NOT EXISTS idx_prompts_category_id ON public.prompts(category_id);
-CREATE INDEX IF NOT EXISTS idx_prompts_is_favorite ON public.prompts(user_id, is_favorite);
-CREATE INDEX IF NOT EXISTS idx_prompts_created_at ON public.prompts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prompts_is_favorite ON public.prompts(is_favorite);
+CREATE INDEX IF NOT EXISTS idx_prompts_created_at ON public.prompts(created_at DESC);
 
 -- 3. Automatic updated_at trigger function
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
@@ -46,89 +44,77 @@ CREATE TRIGGER trigger_prompts_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
--- 4. Enable Row Level Security (RLS) on all tables
+-- 4. Enable Row Level Security (RLS)
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prompts ENABLE ROW LEVEL SECURITY;
 
--- 5. Strict RLS Policies for categories (isolation per authenticated user)
-DROP POLICY IF EXISTS "Users can view their own categories" ON public.categories;
-CREATE POLICY "Users can view their own categories"
+-- 5. Public Read Policies (Visitors can browse and copy prompts without login)
+DROP POLICY IF EXISTS "Allow public read categories" ON public.categories;
+CREATE POLICY "Allow public read categories"
     ON public.categories
     FOR SELECT
-    TO authenticated
-    USING (auth.uid() = user_id);
+    TO anon, authenticated
+    USING (true);
 
-DROP POLICY IF EXISTS "Users can create their own categories" ON public.categories;
-CREATE POLICY "Users can create their own categories"
-    ON public.categories
-    FOR INSERT
-    TO authenticated
-    WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can update their own categories" ON public.categories;
-CREATE POLICY "Users can update their own categories"
-    ON public.categories
-    FOR UPDATE
-    TO authenticated
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can delete their own categories" ON public.categories;
-CREATE POLICY "Users can delete their own categories"
-    ON public.categories
-    FOR DELETE
-    TO authenticated
-    USING (auth.uid() = user_id);
-
--- 6. Strict RLS Policies for prompts (isolation per authenticated user)
-DROP POLICY IF EXISTS "Users can view their own prompts" ON public.prompts;
-CREATE POLICY "Users can view their own prompts"
+DROP POLICY IF EXISTS "Allow public read prompts" ON public.prompts;
+CREATE POLICY "Allow public read prompts"
     ON public.prompts
     FOR SELECT
-    TO authenticated
-    USING (auth.uid() = user_id);
+    TO anon, authenticated
+    USING (true);
 
-DROP POLICY IF EXISTS "Users can create their own prompts" ON public.prompts;
-CREATE POLICY "Users can create their own prompts"
+-- 6. Mutation Policies (Protected on the client application by Owner Passkey)
+DROP POLICY IF EXISTS "Allow insert categories" ON public.categories;
+CREATE POLICY "Allow insert categories"
+    ON public.categories
+    FOR INSERT
+    TO anon, authenticated
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update categories" ON public.categories;
+CREATE POLICY "Allow update categories"
+    ON public.categories
+    FOR UPDATE
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow delete categories" ON public.categories;
+CREATE POLICY "Allow delete categories"
+    ON public.categories
+    FOR DELETE
+    TO anon, authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Allow insert prompts" ON public.prompts;
+CREATE POLICY "Allow insert prompts"
     ON public.prompts
     FOR INSERT
-    TO authenticated
-    WITH CHECK (auth.uid() = user_id);
+    TO anon, authenticated
+    WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Users can update their own prompts" ON public.prompts;
-CREATE POLICY "Users can update their own prompts"
+DROP POLICY IF EXISTS "Allow update prompts" ON public.prompts;
+CREATE POLICY "Allow update prompts"
     ON public.prompts
     FOR UPDATE
-    TO authenticated
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Users can delete their own prompts" ON public.prompts;
-CREATE POLICY "Users can delete their own prompts"
+DROP POLICY IF EXISTS "Allow delete prompts" ON public.prompts;
+CREATE POLICY "Allow delete prompts"
     ON public.prompts
     FOR DELETE
-    TO authenticated
-    USING (auth.uid() = user_id);
+    TO anon, authenticated
+    USING (true);
 
--- 7. Default categories trigger on new user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user_categories()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.categories (user_id, name)
-    VALUES
-        (NEW.id, 'Coding'),
-        (NEW.id, 'Writing'),
-        (NEW.id, 'Research'),
-        (NEW.id, 'Productivity'),
-        (NEW.id, 'Learning'),
-        (NEW.id, 'Other')
-    ON CONFLICT (user_id, name) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_user_categories();
+-- 7. Seed initial default categories
+INSERT INTO public.categories (name)
+VALUES
+    ('Coding'),
+    ('Writing'),
+    ('Research'),
+    ('Productivity'),
+    ('Learning'),
+    ('Other')
+ON CONFLICT (name) DO NOTHING;

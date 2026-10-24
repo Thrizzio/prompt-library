@@ -8,6 +8,7 @@ export interface PromptListProps {
   prompts: Prompt[];
   isLoading: boolean;
   viewMode: ViewMode;
+  isAdmin?: boolean;
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onOpenCreate: () => void;
@@ -22,6 +23,7 @@ export function PromptList({
   prompts,
   isLoading,
   viewMode,
+  isAdmin = false,
   hasActiveFilters,
   onResetFilters,
   onOpenCreate,
@@ -78,9 +80,13 @@ export function PromptList({
       <EmptyState
         icon={<Terminal className="w-6 h-6" />}
         title="Your prompt library is empty"
-        description="Create your first reusable prompt to start organizing your AI workflows."
-        actionLabel="Create Prompt"
-        onAction={onOpenCreate}
+        description={
+          isAdmin
+            ? "Create your first reusable prompt to start organizing your AI workflows."
+            : "No prompts published yet. Check back soon!"
+        }
+        actionLabel={isAdmin ? "Create Prompt" : undefined}
+        onAction={isAdmin ? onOpenCreate : undefined}
       />
     );
   }
@@ -97,6 +103,7 @@ export function PromptList({
         <PromptCard
           key={prompt.id}
           prompt={prompt}
+          isAdmin={isAdmin}
           onEdit={onEdit}
           onDelete={onDelete}
           onToggleFavorite={onToggleFavorite}

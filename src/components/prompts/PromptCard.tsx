@@ -14,6 +14,7 @@ import { Badge } from '../common/Badge';
 
 export interface PromptCardProps {
   prompt: Prompt;
+  isAdmin?: boolean;
   onEdit: (prompt: Prompt) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
@@ -23,6 +24,7 @@ export interface PromptCardProps {
 
 export function PromptCard({
   prompt,
+  isAdmin = false,
   onEdit,
   onDelete,
   onToggleFavorite,
@@ -155,57 +157,62 @@ export function PromptCard({
             )}
           </button>
 
-          {/* Duplicate Button */}
-          <button
-            type="button"
-            onClick={() => onDuplicate(prompt.id)}
-            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Duplicate prompt"
-            aria-label={`Duplicate ${prompt.title}`}
-          >
-            <CopyPlus className="w-4 h-4" />
-          </button>
-
-          {/* Edit Button */}
-          <button
-            type="button"
-            onClick={() => onEdit(prompt)}
-            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Edit prompt"
-            aria-label={`Edit ${prompt.title}`}
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-
-          {/* Delete Button with inline confirmation step */}
-          {isConfirmingDelete ? (
-            <div className="flex items-center gap-1 bg-rose-50 p-1 rounded-lg border border-rose-200">
-              <span className="text-[10px] text-rose-700 font-medium px-1">Delete?</span>
+          {/* Owner Only Actions */}
+          {isAdmin && (
+            <>
+              {/* Duplicate Button */}
               <button
                 type="button"
-                onClick={() => onDelete(prompt.id)}
-                className="text-[11px] bg-rose-600 text-white px-2 py-0.5 rounded font-medium hover:bg-rose-700"
+                onClick={() => onDuplicate(prompt.id)}
+                className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Duplicate prompt"
+                aria-label={`Duplicate ${prompt.title}`}
               >
-                Yes
+                <CopyPlus className="w-4 h-4" />
               </button>
+
+              {/* Edit Button */}
               <button
                 type="button"
-                onClick={() => setIsConfirmingDelete(false)}
-                className="text-[11px] text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded"
+                onClick={() => onEdit(prompt)}
+                className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Edit prompt"
+                aria-label={`Edit ${prompt.title}`}
               >
-                No
+                <Edit2 className="w-4 h-4" />
               </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsConfirmingDelete(true)}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-              title="Delete prompt"
-              aria-label={`Delete ${prompt.title}`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+
+              {/* Delete Button with inline confirmation step */}
+              {isConfirmingDelete ? (
+                <div className="flex items-center gap-1 bg-rose-50 p-1 rounded-lg border border-rose-200">
+                  <span className="text-[10px] text-rose-700 font-medium px-1">Delete?</span>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(prompt.id)}
+                    className="text-[11px] bg-rose-600 text-white px-2 py-0.5 rounded font-medium hover:bg-rose-700"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingDelete(false)}
+                    className="text-[11px] text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingDelete(true)}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                  title="Delete prompt"
+                  aria-label={`Delete ${prompt.title}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,6 +1,11 @@
 # Personal Prompt Library
 
-A fast, responsive, clean, and minimal personal utility for organizing, retrieving, and copying AI prompts. Built as a focused tool with zero bloat, instant client-side retrieval, raw plain-text preservation, and secure user data isolation via PostgreSQL Row Level Security (RLS).
+A fast, responsive, clean, and minimal single-user web application and public showcase for organizing, retrieving, and copying AI prompts. 
+
+Built as a lightweight personal tool and portfolio showcase:
+- **Zero Authentication for Visitors:** Anyone can visit the site, browse categories, search across prompts, and copy exact prompt text with 1 click.
+- **Owner Mode with Passkey:** Only you can add, edit, duplicate, and delete prompts by entering a secret passkey.
+- **Self-Hostable:** Anyone can clone the repository, connect their own Supabase database, set a passkey, and host their personal library.
 
 ---
 
@@ -8,10 +13,10 @@ A fast, responsive, clean, and minimal personal utility for organizing, retrievi
 
 - **Instant Search & Retrieval:** Real-time client-side filtering across prompt titles, content, and tags without artificial debounce delays.
 - **Flawless Clipboard Integration:** Copies raw prompt text with strict whitespace, indentation, and newline preservation. Includes fallback copy mechanisms and clear visual status indicators.
-- **Categorization & Tags:** Organize prompts with custom user categories (e.g., Coding, Writing, Productivity) and lightweight tags.
+- **Categorization & Tags:** Organize prompts with custom categories (e.g., Coding, Writing, Productivity) and lightweight tags.
 - **Favorites & Duplication:** Star frequently used prompts for instant access; duplicate existing prompts with a single click.
 - **Safe Editing & Deletion:** Intuitive modal editor with live character counting, length validation, and inline deletion safeguards.
-- **Rock-Solid Security:** User authentication powered by Supabase Auth and strict PostgreSQL Row Level Security (RLS) guaranteeing that prompts and categories cannot be read or mutated across accounts.
+- **Owner Mode:** Protected by `VITE_ADMIN_PASSKEY` — unlocks creation, editing, deletion, and category management.
 - **Responsive & Accessible:** Fluid layouts adapted for screens from 320px mobile devices to wide desktop monitors, accessible dialogs, semantic markup, and minimum 44px mobile touch targets.
 
 ---
@@ -20,7 +25,7 @@ A fast, responsive, clean, and minimal personal utility for organizing, retrievi
 
 - **Frontend:** React 18, TypeScript (strict mode enabled), Vite
 - **Styling:** Tailwind CSS, Lucide React icons
-- **Backend & Database:** Supabase PostgreSQL, Supabase Auth, Row Level Security (RLS)
+- **Backend & Database:** Supabase PostgreSQL, Row Level Security (RLS)
 - **Testing:** Vitest, React Testing Library, JSDOM
 
 ---
@@ -56,20 +61,22 @@ Copy the sample environment file to create your local `.env`:
 cp .env.example .env
 ```
 
-Populate `.env` with your Supabase credentials:
+Populate `.env` with your Supabase credentials and secret owner passkey:
 
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-publishable-key
+VITE_ADMIN_PASSKEY=your-secret-owner-passkey
 ```
 
-> **Security Note:** Never expose the Supabase `service_role` secret in frontend code. Only use the anonymous / publishable key (`anon`), which is protected by database Row Level Security.
+- When visiting the application, click **Owner Unlock** in the header and enter `your-secret-owner-passkey` to activate editing mode.
+- Public visitors will see all prompts and can copy them freely, but will not see creation or deletion controls.
 
 ---
 
 ## Supabase Database Configuration & Migrations
 
-The database schema and RLS policies are version-controlled in [`supabase/migrations/20261024000000_init_prompt_library.sql`](supabase/migrations/20261024000000_init_prompt_library.sql).
+The database schema is version-controlled in [`supabase/migrations/20261024000000_init_prompt_library.sql`](supabase/migrations/20261024000000_init_prompt_library.sql).
 
 ### Applying via Supabase Web Dashboard:
 1. Navigate to your Supabase project dashboard at [supabase.com/dashboard](https://supabase.com/dashboard).
@@ -77,19 +84,10 @@ The database schema and RLS policies are version-controlled in [`supabase/migrat
 3. Open or paste the contents of `supabase/migrations/20261024000000_init_prompt_library.sql`.
 4. Click **Run** to execute the migration.
 
-### Applying via Supabase CLI (Optional):
-```bash
-supabase db push
-# Or for local development:
-supabase start
-supabase db reset
-```
-
-The migration automatically creates:
-- `public.categories` table with unique user category constraints.
-- `public.prompts` table with foreign keys, indexes, and an automatic `updated_at` trigger.
-- Full Row Level Security (RLS) policies for `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on all tables.
-- A trigger on `auth.users` to provision default categories (`Coding`, `Writing`, `Research`, `Productivity`, `Learning`, `Other`) whenever a new user registers.
+The migration sets up:
+- `public.categories` and `public.prompts` tables.
+- Public read access (`SELECT`) enabled for all visitors (`anon` and `authenticated`).
+- Default categories (`Coding`, `Writing`, `Research`, `Productivity`, `Learning`, `Other`).
 
 ---
 
@@ -118,35 +116,14 @@ The migration automatically creates:
   ```
   Runs Vitest unit and integration test suites with zero warnings.
 
-- **Run Tests in Watch Mode:**
-  ```bash
-  npm run test:watch
-  ```
-
 ---
 
 ## Deployment Instructions
 
-Because the application is a static client-side Single Page Application (SPA), it can be deployed to any modern static hosting service:
+Deployable to any static hosting service (Vercel, Cloudflare Pages, Netlify, or GitHub Pages):
 
-### Deploying to Vercel
-1. Push code to your Git provider (GitHub / GitLab).
-2. Import the repository in [Vercel](https://vercel.com).
-3. Set the Framework Preset to **Vite**.
-4. Configure the Environment Variables:
+1. Set the build command to `npm run build` and publish directory to `dist`.
+2. Add the environment variables:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-5. Click **Deploy**.
-
-### Deploying to Netlify / Cloudflare Pages
-- **Build command:** `npm run build`
-- **Publish directory:** `dist`
-- **Environment variables:** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-
----
-
-## Known Limitations & Intentional Non-Goals
-
-- **Raw Text Focus:** Prompts are stored and displayed strictly as raw text (`white-space: pre-wrap`) to prevent markdown rendering issues, HTML injection, and formatting corruption.
-- **Client-Side Search:** The initial version filters personal prompt collections in memory for maximum speed. For users with > 10,000 prompts, full-text database search and pagination can be toggled without structural changes to the client components.
-- **Deferred Features:** Public prompt marketplaces, AI generation APIs, and vector embeddings are intentionally omitted to keep the utility lightweight, privacy-focused, and fast.
+   - `VITE_ADMIN_PASSKEY`
