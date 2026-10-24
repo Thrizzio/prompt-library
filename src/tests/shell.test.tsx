@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { App } from '../App';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 
 describe('Application Shell & Design System', () => {
-  it('renders application branding and empty state properly', () => {
+  it('renders application branding and unauthenticated state properly', async () => {
     render(<App />);
     expect(screen.getAllByText('Prompt Library')[0]).toBeInTheDocument();
-    expect(screen.getByText('Your prompt library is empty')).toBeInTheDocument();
-    expect(screen.getByText('Create Prompt')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText('Sign in to access your personal prompt library')
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /sign in \/ register/i })).toBeInTheDocument();
   });
 
   it('renders Button with variants and accessible attributes', () => {
